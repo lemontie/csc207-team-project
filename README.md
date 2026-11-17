@@ -66,7 +66,7 @@ This application follows **Clean Architecture** principles to ensure high cohesi
 # User Stories
 ## User story 1
 
-- As a fashionista, I want to browse through accessories
+- As a fashionista, I want to find accessories that goes with my outfit
 ## User story 2
 
 - As a student, I want to make a shopping list within my budget
@@ -75,7 +75,8 @@ This application follows **Clean Architecture** principles to ensure high cohesi
 - As a white-collar worker, I want to look for formal clothing
 ## User story 4
 
-- As a user, I want to receive outfit recommendations, evaluations
+- As a user, I want to be able to sign up and login to have access to my saved items from different devices
+
 ---
 # Use cases  
 
