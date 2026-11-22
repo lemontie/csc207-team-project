@@ -8,23 +8,22 @@ import com.azure.cosmos.models.SqlParameter;
 import com.azure.cosmos.models.SqlQuerySpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import entity.Product;
+import entity.ProductFactory;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 
 /**
  * Reads products from an Azure Cosmos DB (NoSQL) container, one page at a time.
- * Raw documents are converted to {@link Product}s by the given product factory.
- * # TODO: ProductFactory is not yet implemented
+ * Raw documents are converted to {@link Product}s by {@link ProductFactory}.
  */
 public class CosmosDataBase implements ProductsDataBase {
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final CosmosContainer container;
-    private final Function<JsonNode, Product> productFactory;
+    private final ProductFactory productFactory;
     private final int pageSize;
 
     private SqlQuerySpec lastQuery;
@@ -37,27 +36,24 @@ public class CosmosDataBase implements ProductsDataBase {
      * @param key the account key
      * @param databaseName the database name
      * @param containerName the container holding the products
-     * @param productFactory converts a raw document into a Product
      */
-    public CosmosDataBase(String endpoint, String key, String databaseName, String containerName,
-                          Function<JsonNode, Product> productFactory) {
+    public CosmosDataBase(String endpoint, String key, String databaseName, String containerName) {
         this(new CosmosClientBuilder().endpoint(endpoint).key(key).buildClient()
                         .getDatabase(databaseName).getContainer(containerName),
-                productFactory, DEFAULT_PAGE_SIZE);
+                DEFAULT_PAGE_SIZE);
     }
 
     /**
      * Uses an existing container.
      * @param container the container holding the products
-     * @param productFactory converts a raw document into a Product
      * @param pageSize the preferred number of products per page; must be positive
      */
-    public CosmosDataBase(CosmosContainer container, Function<JsonNode, Product> productFactory, int pageSize) {
+    public CosmosDataBase(CosmosContainer container, int pageSize) {
         if (pageSize <= 0) {
             throw new IllegalArgumentException("Page size must be positive");
         }
         this.container = container;
-        this.productFactory = productFactory;
+        this.productFactory = new ProductFactory();
         this.pageSize = pageSize;
     }
 

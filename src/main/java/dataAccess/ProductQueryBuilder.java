@@ -169,6 +169,42 @@ public class ProductQueryBuilder {
     }
 
     /**
+     * Keeps only products whose embedding is strictly between two vector-distance bounds
+     * from the supplied embedding.
+     * @param field the document field holding the product embedding
+     * @param embedding the reference embedding; must be non-empty
+     * @param minDistance the exclusive lower distance bound; must be non-negative
+     * @param maxDistance the exclusive upper distance bound; must be greater than minDistance
+     * @return this builder
+     */
+    public ProductQueryBuilder whereEmbeddingDistanceRange(
+            String field, float[] embedding, double minDistance, double maxDistance) {
+        if (embedding == null || embedding.length == 0) {
+            throw new IllegalArgumentException("Embedding must be non-empty");
+        }
+        if (!Double.isFinite(minDistance) || minDistance < 0) {
+            throw new IllegalArgumentException("minDistance must be finite and non-negative");
+        }
+        if (!Double.isFinite(maxDistance) || maxDistance <= minDistance) {
+            throw new IllegalArgumentException("maxDistance must be finite and greater than minDistance");
+        }
+
+        String distance = "VectorDistance(" + path(field) + ", " + addParameter(embedding.clone()) + ")";
+        conditions.add(distance + " > " + addParameter(minDistance));
+        conditions.add(distance + " < " + addParameter(maxDistance));
+        return this;
+    }
+
+    /**
+     * Keeps only products whose configured embedding field is strictly between two
+     * vector-distance bounds from the supplied embedding.
+     */
+    public ProductQueryBuilder whereEmbeddingDistanceRange(
+            float[] embedding, double minDistance, double maxDistance) {
+        return whereEmbeddingDistanceRange(embeddingField, embedding, minDistance, maxDistance);
+    }
+
+    /**
      * Builds the query.
      * @return the parameterized query
      * @throws IllegalStateException if neither first nor nearest was chosen
