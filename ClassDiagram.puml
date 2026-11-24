@@ -1,0 +1,80 @@
+@startuml
+skinparam dpi 150
+skinparam classAttributeIconSize 0
+Interface DBInterface {
++ getUser(String userName, String encryptedPassword): User
++ saveUser(User LoggedInUser): boolean
++ getItems(SearchCriteria searchCriteria): Item[]
+}
+
+Interface User {
++ isLoggedIn(): boolean
++ getUserName(): string
++ canSaveItem(): boolean
+}
+
+class LoggedInUser {
+- userName: String
+- outfitLists: Map<String, Set<String>>
++ getUserName(): String
++ itemIsSaved(String itemID): boolean
++ getSavedItemIDs(): Set<String>
++ isLoggedIn(): boolean
++ canSaveItem(): boolean
++ logOut(): NotLoggedInUser
+}
+
+class NotLoggedInUser {
++ isLoggedIn(): boolean
++ getUserName(): String
++ canSaveItem(): boolean
++ logIn(): LoggedInUser
+}
+
+class UsecaseInteractor {
+}
+
+class Item {
+- itemID: String
+- itemName: String
+- itemDescription: String
+- itemProperties: Property[]
++ getItemName(): String
++ getItemDescription(): String
++ getItemProperties(): Property[]
++ getItemID(): String
+}
+
+enum Property {
+FORMAL
+CASUAL
+COTTON
+ACCESSORY
+SHIRT
+DRESS
+}
+
+class SearchCriteria {
+- properties: Set<Property>
+- keyword: String
+- sortBy: SortOrder
++ SearchCriteria()
++ SearchCriteria(Set<Property> properties, String keyword, SortOrder SortBy)
++ getProperties(): Set<Property>
++ getKeyword(): String
++ getSortBy(): SortOrder
+}
+
+enum SortOrder {
+NAME_ASC
+NAME_DESC
+}
+
+UsecaseInteractor o--> DBInterface
+Interface InputBoundary
+UsecaseInteractor ..|>InputBoundary
+UsecaseInteractor o--> User
+UsecaseInteractor o--> Item
+NotLoggedInUser ..|> User
+LoggedInUser ..|> User
+@enduml
