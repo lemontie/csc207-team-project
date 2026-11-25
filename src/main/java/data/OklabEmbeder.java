@@ -1,4 +1,4 @@
-package dataAccess;
+package data;
 
 import java.util.Collection;
 
@@ -7,7 +7,9 @@ import java.util.Collection;
  * The histogram index is L * 64 + a * 8 + b.
  */
 public class OklabEmbeder {
+    /** Number of histogram bins along each Oklab axis. */
     public static final int BINS_PER_AXIS = 8;
+    /** Total histogram size: 8 cubed bins. */
     public static final int HISTOGRAM_SIZE = BINS_PER_AXIS * BINS_PER_AXIS * BINS_PER_AXIS;
 
     private static final double[] AXIS_MIN = {0.0, -0.2339, -0.3116};
@@ -15,10 +17,22 @@ public class OklabEmbeder {
     private static final double GAUSSIAN_SIGMA = 0.06;
     private static final double[][] BIN_CENTERS = computeBinCenters();
 
+    /**
+     * Creates a normalized Oklab histogram for one hexadecimal color.
+     * @param hexCode a six-digit hexadecimal RGB value, optionally prefixed with {@code #}
+     * @return a 512-value normalized histogram
+     */
     public double[] embed(String hexCode) {
         return embed(new String[]{hexCode});
     }
 
+    /**
+     * Combines several hexadecimal colors into a normalized Oklab histogram.
+     * Each valid color contributes equal weight before normalization.
+     * @param hexCodes at least one six-digit hexadecimal RGB value
+     * @return a 512-value normalized histogram
+     * @throws IllegalArgumentException if no codes are supplied or a code is invalid
+     */
     public double[] embed(String[] hexCodes) {
         if (hexCodes == null || hexCodes.length == 0) {
             throw new IllegalArgumentException("At least one hex code is required");
@@ -33,6 +47,12 @@ public class OklabEmbeder {
         return histogram;
     }
 
+    /**
+     * Combines a collection of hexadecimal colors into a normalized Oklab histogram.
+     * @param hexCodes at least one six-digit hexadecimal RGB value
+     * @return a 512-value normalized histogram
+     * @throws IllegalArgumentException if the collection is null or empty
+     */
     public double[] embed(Collection<String> hexCodes) {
         if (hexCodes == null) {
             throw new IllegalArgumentException("Hex codes must not be null");
@@ -40,14 +60,12 @@ public class OklabEmbeder {
         return embed(hexCodes.toArray(new String[0]));
     }
 
-    public double[] embedHex(String hexCode) {
-        return embed(hexCode);
-    }
-
-    public double[] embedHexCodes(Collection<String> hexCodes) {
-        return embed(hexCodes);
-    }
-
+    /**
+     * Converts a hexadecimal sRGB color to CIE-like Oklab coordinates.
+     * @param hexCode a six-digit hexadecimal RGB value, optionally prefixed with {@code #}
+     * @return coordinates {@code [L, a, b]}
+     * @throws IllegalArgumentException if the code is malformed
+     */
     public double[] hexToOklab(String hexCode) {
         int rgb = parseHex(hexCode);
         double red = linearRgb(((rgb >> 16) & 0xff) / 255.0);
@@ -67,10 +85,6 @@ public class OklabEmbeder {
                 1.9779984951 * cubeL - 2.4285922050 * cubeM + 0.4505937099 * cubeS,
                 0.0259040371 * cubeL + 0.7827717662 * cubeM - 0.8086757660 * cubeS
         };
-    }
-
-    public double[] hexToOklabValues(String hexCode) {
-        return hexToOklab(hexCode);
     }
 
     private static int parseHex(String hexCode) {

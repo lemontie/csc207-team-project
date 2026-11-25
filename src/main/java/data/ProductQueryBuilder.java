@@ -1,4 +1,4 @@
-package dataAccess;
+package data;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -12,10 +12,10 @@ import java.util.regex.Pattern;
  *
  * <p>A query runs in exactly one of two modes:
  * <ul>
- *   <li>{@link #first(int)}: the first {@code count} products the database returns, in no
+ *   <li>{@link #first()}: products the database returns, in no
  *       particular order.</li>
- *   <li>{@link #nearest(int, float[])}: the top {@code count} products ordered by embedding
- *       similarity (most similar first) using {@code VectorDistance}.</li>
+ *   <li>{@link #nearest(int, float[])}: the closest {@code count} products, ordered by
+ *       embedding similarity using {@code VectorDistance}.</li>
  * </ul>
  * Any number of hard filters can be added; they are combined with AND and applied in both modes.
  *
@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * ProductQuery query = new ProductQueryBuilder()
  *         .nearest(20, embedding)
  *         .whereEquals("category", "accessories")
- *         .whereRange("price", 0, 50)
+ *         .whereArrayElementRange("offers", "price.price", 0, 50)
  *         .build();
  * }</pre>
  */
@@ -34,9 +34,8 @@ public class ProductQueryBuilder {
     private static final String ALIAS = "c";
 
     private enum Mode { FIRST, NEAREST }
-
     private Mode mode;
-    private int count;
+    private int nearestCount;
     private float[] embedding;
     private String embeddingField = "embedding";
 
@@ -45,27 +44,32 @@ public class ProductQueryBuilder {
     private int nextParameterId;
 
     /**
-     * Queries the first {@code count} products the database returns, in no particular order.
-     * @param count the maximum number of products to return; must be positive
+     * Queries products in no particular order. Use database continuation paging to retrieve
+     * the complete result set.
      * @return this builder
      */
-    public ProductQueryBuilder first(int count) {
-        setMode(Mode.FIRST, count);
+    public ProductQueryBuilder first() {
+        this.mode = Mode.FIRST;
         this.embedding = null;
         return this;
     }
 
     /**
-     * Queries the top {@code count} products, ordered by similarity to the given embedding.
+     * Queries the closest {@code count} products to the given embedding. Cosmos vector searches
+     * require a result limit; continuation paging retrieves up to this limit.
      * @param count the maximum number of products to return; must be positive
      * @param embedding the query embedding; must be non-empty
      * @return this builder
      */
     public ProductQueryBuilder nearest(int count, float[] embedding) {
+        if (count <= 0) {
+            throw new IllegalArgumentException("Count must be positive");
+        }
         if (embedding == null || embedding.length == 0) {
             throw new IllegalArgumentException("Embedding must be non-empty");
         }
-        setMode(Mode.NEAREST, count);
+        this.mode = Mode.NEAREST;
+        this.nearestCount = count;
         this.embedding = embedding.clone();
         return this;
     }
@@ -144,6 +148,42 @@ public class ProductQueryBuilder {
     }
 
     /**
+     * Keeps products with at least one array element whose numeric field is within
+     * [min, max]. Either bound may be null to leave that side open. For example,
+     * {@code whereArrayElementRange("offers", "price.price", 20, 50)} matches
+     * products having any offer priced between 20 and 50, inclusive.
+     *
+     * @param arrayField the product field containing an array, e.g. {@code "offers"}
+     * @param elementField the numeric field path within each element, e.g. {@code "price.price"}
+     * @param min the inclusive lower bound, or null
+     * @param max the inclusive upper bound, or null
+     * @return this builder
+     * @throws IllegalArgumentException if both bounds are null or min is greater than max
+     */
+    public ProductQueryBuilder whereArrayElementRange(
+            String arrayField, String elementField, Number min, Number max) {
+        if (min == null && max == null) {
+            throw new IllegalArgumentException("At least one bound must be given");
+        }
+        if (min != null && max != null && min.doubleValue() > max.doubleValue()) {
+            throw new IllegalArgumentException("min must not be greater than max");
+        }
+
+        String arrayPath = path(arrayField);
+        String elementPath = "o." + validateField(elementField);
+        List<String> elementConditions = new ArrayList<>();
+        if (min != null) {
+            elementConditions.add(elementPath + " >= " + addParameter(min));
+        }
+        if (max != null) {
+            elementConditions.add(elementPath + " <= " + addParameter(max));
+        }
+        conditions.add("EXISTS (SELECT VALUE o FROM o IN " + arrayPath
+                + " WHERE " + String.join(" AND ", elementConditions) + ")");
+        return this;
+    }
+
+    /**
      * Keeps only products whose array field contains the value (e.g. a tag or size).
      * @param field the field path of an array
      * @param value the value the array must contain
@@ -196,15 +236,6 @@ public class ProductQueryBuilder {
     }
 
     /**
-     * Keeps only products whose configured embedding field is strictly between two
-     * vector-distance bounds from the supplied embedding.
-     */
-    public ProductQueryBuilder whereEmbeddingDistanceRange(
-            float[] embedding, double minDistance, double maxDistance) {
-        return whereEmbeddingDistanceRange(embeddingField, embedding, minDistance, maxDistance);
-    }
-
-    /**
      * Builds the query.
      * @return the parameterized query
      * @throws IllegalStateException if neither first nor nearest was chosen
@@ -214,10 +245,11 @@ public class ProductQueryBuilder {
             throw new IllegalStateException("Call first(...) or nearest(...) before build()");
         }
         Map<String, Object> allParameters = new LinkedHashMap<>(parameters);
-        StringBuilder query = new StringBuilder("SELECT TOP ")
-                .append(count)
-                .append(" * FROM ")
-                .append(ALIAS);
+        StringBuilder query = new StringBuilder("SELECT ");
+        if (mode == Mode.NEAREST) {
+            query.append("TOP ").append(nearestCount).append(' ');
+        }
+        query.append("* FROM ").append(ALIAS);
         if (!conditions.isEmpty()) {
             query.append(" WHERE ").append(String.join(" AND ", conditions));
         }
@@ -227,14 +259,6 @@ public class ProductQueryBuilder {
         }
 
         return new ProductQuery(query.toString(), allParameters);
-    }
-
-    private void setMode(Mode newMode, int newCount) {
-        if (newCount <= 0) {
-            throw new IllegalArgumentException("Count must be positive");
-        }
-        this.mode = newMode;
-        this.count = newCount;
     }
 
     private ProductQueryBuilder addComparison(String field, String operator, Object value) {
