@@ -1,4 +1,4 @@
-package useCase.secondUseCase;
+package uses.firstUseCase;
 
 public class implementation {
 }

@@ -1,4 +1,4 @@
-package dataAccess;
+package data;
 
 import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosContainer;
@@ -9,6 +9,7 @@ import com.azure.cosmos.models.SqlQuerySpec;
 import com.fasterxml.jackson.databind.JsonNode;
 import entity.Product;
 import entity.ProductFactory;
+import uses.ProductsDataBase;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -18,6 +19,7 @@ import java.util.Map;
 /**
  * Reads products from an Azure Cosmos DB (NoSQL) container, one page at a time.
  * Raw documents are converted to {@link Product}s by {@link ProductFactory}.
+ * TODO: use ProductQueryBuilder to build queries using a given InputData object, rather than exposing ProductQuery to the use case.
  */
 public class CosmosDataBase implements ProductsDataBase {
     private static final int DEFAULT_PAGE_SIZE = 20;
@@ -38,9 +40,22 @@ public class CosmosDataBase implements ProductsDataBase {
      * @param containerName the container holding the products
      */
     public CosmosDataBase(String endpoint, String key, String databaseName, String containerName) {
+        this(endpoint, key, databaseName, containerName, DEFAULT_PAGE_SIZE);
+    }
+
+    /**
+     * Connects to the given Cosmos DB container with a configurable preferred page size.
+     * @param endpoint the account endpoint, e.g. {@code https://<account>.documents.azure.com:443/}
+     * @param key the account key
+     * @param databaseName the database name
+     * @param containerName the container holding the products
+     * @param pageSize the preferred number of products per page; must be positive
+     */
+    public CosmosDataBase(
+            String endpoint, String key, String databaseName, String containerName, int pageSize) {
         this(new CosmosClientBuilder().endpoint(endpoint).key(key).buildClient()
                         .getDatabase(databaseName).getContainer(containerName),
-                DEFAULT_PAGE_SIZE);
+                pageSize);
     }
 
     /**
@@ -57,6 +72,11 @@ public class CosmosDataBase implements ProductsDataBase {
         this.pageSize = pageSize;
     }
 
+    /**
+     * Starts a new paginated query and returns its first page.
+     * @param productQuery the parameterized product query
+     * @return the first page, or an empty array if no products match
+     */
     @Override
     public Product[] getProducts(ProductQuery productQuery) {
         lastQuery = toQuerySpec(productQuery);
@@ -64,6 +84,11 @@ public class CosmosDataBase implements ProductsDataBase {
         return fetchPage(null);
     }
 
+    /**
+     * Returns the next page for the last query supplied to {@link #getProducts(ProductQuery)}.
+     * @return the next page, or an empty array after the result set is exhausted
+     * @throws IllegalStateException if no query has been started
+     */
     @Override
     public Product[] nextProducts() {
         if (lastQuery == null) {

@@ -1,4 +1,4 @@
-package dataAccess;
+package data;
 
 import java.io.IOException;
 import java.net.URI;
@@ -21,13 +21,13 @@ public class TextEmbeder {
     private final String model;
     private final HttpClient httpClient;
 
-    public TextEmbeder() {
-        this(
-                requireEnvironment("AZURE_FOUNDRY_ENDPOINT"),
-                requireEnvironment("AZURE_FOUNDRY_API_KEY"),
-                environmentOrDefault("AZURE_FOUNDRY_EMBEDDING_DEPLOYMENT", null));
-    }
-
+    /**
+     * Creates an embedder for a named Azure OpenAI deployment.
+     * @param endpoint the Azure Foundry or Azure OpenAI resource endpoint
+     * @param apiKey the endpoint API key
+     * @param model the deployment name used in the embeddings URL
+     * @throws IllegalArgumentException if endpoint, key, or model is missing
+     */
     public TextEmbeder(String endpoint, String apiKey, String model) {
         if (endpoint == null || endpoint.trim().isEmpty()) {
             throw new IllegalArgumentException("Embedding endpoint must not be empty");
@@ -36,27 +36,25 @@ public class TextEmbeder {
             throw new IllegalArgumentException("Embedding API key must not be empty");
         }
         this.apiKey = apiKey;
-        this.model = model == null || model.trim().isEmpty() ? null : model.trim();
+        this.model = model;
         this.endpoint = URI.create(buildEndpoint(endpoint, this.model));
         this.httpClient = HttpClient.newHttpClient();
     }
 
-    public TextEmbeder(String endpoint, String apiKey) {
-        this(endpoint, apiKey, null);
-    }
-
+    /**
+     * Sends text to Azure Foundry and returns its embedding vector.
+     * @param text non-empty text to embed
+     * @return the embedding values returned by the service
+     * @throws IllegalArgumentException if text is empty
+     * @throws IllegalStateException if the HTTP call fails or the response has no embedding
+     */
     public float[] embed(String text) {
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("Search text must not be empty");
         }
 
         String payload;
-        if (model != null) {
-            payload = "{\"input\":" + quote(text)
-                    + ",\"model\":" + quote(model) + "}";
-        } else {
-            payload = "{\"input\":" + quote(text) + "}";
-        }
+        payload = "{\"input\":" + quote(text) + ",\"model\":" + quote(model) + "}";
 
         HttpRequest request = HttpRequest.newBuilder(endpoint)
                 .header("Content-Type", "application/json")
@@ -80,14 +78,6 @@ public class TextEmbeder {
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to call Azure Foundry embedding endpoint", exception);
         }
-    }
-
-    public float[] embedText(String text) {
-        return embed(text);
-    }
-
-    public URI getEndpoint() {
-        return endpoint;
     }
 
     private static float[] parseEmbedding(String json) {
@@ -115,15 +105,9 @@ public class TextEmbeder {
 
     private static String buildEndpoint(String endpoint, String model) {
         String value = stripTrailingSlash(endpoint.trim());
-        if (value.endsWith("/embeddings")) {
-            return value;
-        }
         if (model == null || model.trim().isEmpty()) {
             throw new IllegalArgumentException(
                     "Embedding model/deployment name is required");
-        }
-        if (value.endsWith("/openai/v1")) {
-            return value + "/embeddings";
         }
         return value + "/openai/deployments/"
                 + encodePathSegment(model)
@@ -149,18 +133,4 @@ public class TextEmbeder {
                 .replace("\r", "\\r")
                 .replace("\t", "\\t") + "\"";
     }
-
-    private static String requireEnvironment(String name) {
-        String value = System.getenv(name);
-        if (value == null || value.trim().isEmpty()) {
-            throw new IllegalStateException("Missing environment variable: " + name);
-        }
-        return value;
-    }
-
-    private static String environmentOrDefault(String name, String defaultValue) {
-        String value = System.getenv(name);
-        return value == null || value.trim().isEmpty() ? defaultValue : value.trim();
-    }
-
 }

@@ -8,7 +8,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/**
+ * Converts raw Cosmos DB JSON product documents into {@link Product} graphs.
+ *
+ * <p>This factory owns the mapping of external JSON field names, including
+ * {@code cleaned_url}, {@code key_features}, and {@code structured_attributes},
+ * to the camel-case properties on {@link Product}.
+ */
 public class ProductFactory implements Function<JsonNode, Product> {
+    /**
+     * Converts one raw product document.
+     * @param json the raw JSON object; null or JSON null produces null
+     * @return a populated product, or null for null input
+     */
     @Override
     public Product apply(JsonNode json) {
         if (json == null || json.isNull()) {

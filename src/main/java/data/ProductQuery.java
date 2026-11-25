@@ -1,4 +1,4 @@
-package dataAccess;
+package data;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -18,6 +18,11 @@ public final class ProductQuery {
         this.parameters = Collections.unmodifiableMap(new LinkedHashMap<>(parameters));
     }
 
+    /**
+     * Returns the Cosmos DB SQL text for this query.
+     * Field paths may be inlined, but values are supplied through the parameter map.
+     * @return the SQL query text
+     */
     public String getQueryText() {
         return queryText;
     }

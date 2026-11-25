@@ -1,4 +1,4 @@
-package interfaceAdapter;
+package adapters;
 
 public class ViewManagerModel {
 }
